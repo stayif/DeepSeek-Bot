@@ -56,14 +56,53 @@ test('a referenced conversation\'s "@label" is a reference, once per label', () 
   assert.deepEqual(mentionSpans('Read @Chief, then @Chief please', bots, { references: ['Chief'] }).map(span => span.start), [18])
 })
 
+// Issue #1: a model writing a call as "＠Name" (full-width at) is calling that Bot, but
+// the group did not read it as a call, so the member was never called. The full-width at
+// is what a Chinese input method produces for "@" when the name follows it at once.
+test('a full-width at that touches the name still calls a member', () => {
+  assert.deepEqual(called('＠Chief 你来看下'), ['Chief'])
+  assert.deepEqual(called('请 ＠新 Bot。'), ['新 Bot'])
+  assert.deepEqual(called('＠＠Chief'), ['Chief'])
+  assert.deepEqual(called('＠all 全体'), ['@all'])
+  // Inside code, a link or an address it stays literal, exactly as the ASCII form.
+  assert.deepEqual(called('run `＠Chief` now'), [])
+  assert.deepEqual(called('mail a＠Chief.com'), [])
+})
+
+// A mention is written "@Name". A space after the at says it was meant as text, so it is
+// not a call: mentioning someone without calling them stays possible.
+test('an at with a space before the name does not call, in either form', () => {
+  assert.deepEqual(called('@ Chief 只是提到'), [])
+  assert.deepEqual(called('@ 新 Bot 2 来一下'), [])
+  assert.deepEqual(called('＠ Chief 只是提到'), [])
+  assert.deepEqual(called('@　Chief'), [])
+})
+
+test('a call written the way a Chinese message writes it still calls', () => {
+  // The bug report's shape: a Bot dispatches with the name after a word, no space.
+  assert.deepEqual(called('请＠Chief看下这个 bug'), ['Chief'])
+  assert.deepEqual(called('已转给 ＠新 Bot 2，等它回'), ['新 Bot 2'])
+  // "＠" is not the at inside an address: the rule for "@" holds for it too.
+  assert.deepEqual(called('id＠Chief 不算'), [])
+  // A line break after the at is not a call: the name must follow the at itself.
+  assert.deepEqual(called('＠\nChief 不算'), [])
+})
+
 test('the group host and the bubbles call the same Bots', () => {
-  const texts = ['@新 Bot 提权', '@新 Bot 2 来一下', 'a@K.com @K', '`@Chief` @新 Bot', '@Chief，@K。', '@Chief.md @K', '[see @K](https://x.dev "t") @Chief']
+  const texts = ['@新 Bot 提权', '@新 Bot 2 来一下', 'a@K.com @K', '`@Chief` @新 Bot', '@Chief，@K。', '@Chief.md @K', '[see @K](https://x.dev "t") @Chief', '＠Chief 和 @ 新 Bot', '请＠K看下', '＠＠新 Bot 2']
   for (const text of texts) {
     const host = mentionsIn(text, bots).found.map(bot => bot.id)
     const linked = [...linkMentions(text, bots, undefined).matchAll(new RegExp(`\\]\\(${MENTION_ORIGIN}([^)]+)\\)`, 'g'))].map(match => match[1])
     const drawn = userTextParts(text, bots).filter(part => part.bot).map(part => part.bot.id)
     assert.deepEqual(linked, host, text)
     assert.deepEqual(plain(drawn), host, text)
+  }
+})
+
+test('the bubble draws the name alone, however the at was written', () => {
+  for (const [text, label] of [['＠Chief 你来看下', 'Chief'], ['＠＠新 Bot 2', '新 Bot 2'], ['请＠K看下', 'K']]) {
+    assert.equal(plain(userTextParts(text, bots)).filter(part => part.bot).map(part => part.label).join(''), label, text)
+    assert.deepEqual(linkMentions(text, bots, undefined).match(/\[([^\]]+)\]/g), [`[${label}]`], text)
   }
 })
 

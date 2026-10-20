@@ -9,12 +9,12 @@ export const MENTION_ORIGIN = 'https://bots.local/'
 // speaker's own name takes part so that it is never read as a shorter name inside it
 // ("@新 Bot" in "@新 Bot 2"); it then stays plain text.
 export function linkMentions(text, bots, selfId) {
-  if (!text || !text.includes('@')) return text
+  if (!text || !/[@＠]/.test(text)) return text
   let out = ''
   let cursor = 0
   for (const span of mentionSpans(text, bots)) {
     if (!span.bot || span.bot.id === selfId) continue
-    out += `${text.slice(cursor, span.start)}[${text.slice(span.start + 1, span.end).replace(/[[\]\\]/g, '\\$&')}](${MENTION_ORIGIN}${span.bot.id})`
+    out += `${text.slice(cursor, span.start)}[${text.slice(span.name, span.end).replace(/[[\]\\]/g, '\\$&')}](${MENTION_ORIGIN}${span.bot.id})`
     cursor = span.end
   }
   return cursor === 0 ? text : out + text.slice(cursor)
