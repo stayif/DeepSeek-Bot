@@ -1427,7 +1427,11 @@ var speakerOf = (line) => line.botId !== void 0 && USER_NAMES.includes(String(li
 var NAME_GOES_ON = /^(?:[a-z0-9_\-/\\]|\.[a-z0-9_-])/i;
 var ADDRESS_BEFORE = /[a-z0-9_./]/i;
 var LITERAL = /```[\s\S]*?(?:```|$)|`[^`\n]*`|\[[^\]\n]*\]\([^)\s]*(?:\s+(?:"[^"\n]*"|'[^'\n]*'))?\)/g;
-var fitsAt = (text, at, word) => text.slice(at, at + word.length).toLowerCase() === word.toLowerCase() && !NAME_GOES_ON.test(text.slice(at + word.length));
+var isAt = (char) => char === "@" || char === "＠";
+var searchAt = (text, from) => {
+  for (let at = from; at < text.length; at += 1) if (isAt(text[at])) return at;
+  return -1;
+};
 var overlaps = (spans, start, end) => spans.some((span) => start < span.end && span.start < end);
 function nameProblem(name) {
   const text = String(name ?? "").trim();
@@ -1437,14 +1441,23 @@ function nameProblem(name) {
   if (USER_NAMES.includes(text.toLowerCase())) return `"${text}" stands for the user in a chat, so it cannot be a Bot name`;
   return void 0;
 }
+var atRun = (text, at) => {
+  let start = at;
+  while (start > 0 && isAt(text[start - 1])) start -= 1;
+  let name = at;
+  while (isAt(text[name])) name += 1;
+  while (/[^\S\r\n]/.test(text[name] ?? "")) name += 1;
+  return { start, name };
+};
 function referenceSpans(text, labels = []) {
   const spans = [];
   for (const label of [...labels].sort((a, b) => b.length - a.length)) {
-    const mention = `@${label}`;
-    for (let at = text.indexOf(mention); at !== -1; at = text.indexOf(mention, at + 1)) {
-      const end = at + mention.length;
-      if (at > 0 && ADDRESS_BEFORE.test(text[at - 1]) || NAME_GOES_ON.test(text.slice(end)) || overlaps(spans, at, end)) continue;
-      spans.push({ start: at, end, label });
+    for (let at = searchAt(text, 0); at !== -1; at = searchAt(text, at + 1)) {
+      const { start, name } = atRun(text, at);
+      const end = name + label.length;
+      if (text.slice(name, end) !== label) continue;
+      if (start > 0 && ADDRESS_BEFORE.test(text[start - 1]) || NAME_GOES_ON.test(text.slice(end)) || overlaps(spans, start, end)) continue;
+      spans.push({ start, end, label });
       break;
     }
   }
@@ -1458,13 +1471,15 @@ function mentionSpans(text, bots, { references = [] } = {}) {
   ];
   const byLength = bots.filter((bot) => bot?.name).sort((a, b) => b.name.length - a.name.length);
   const spans = [];
-  for (let at = value.indexOf("@"); at !== -1; at = value.indexOf("@", at + 1)) {
-    if (at > 0 && ADDRESS_BEFORE.test(value[at - 1]) || overlaps(skip, at, at + 1)) continue;
-    const bot = byLength.find((candidate) => fitsAt(value, at + 1, candidate.name));
-    const all = bot ? void 0 : ALL_WORDS.find((word) => fitsAt(value, at + 1, word));
+  for (let at = searchAt(value, 0); at !== -1; at = searchAt(value, at + 1)) {
+    const { start, name } = atRun(value, at);
+    if (start > 0 && ADDRESS_BEFORE.test(value[start - 1]) || overlaps(skip, start, Math.max(name, at + 1))) continue;
+    const fits = (word) => value.slice(name, name + word.length).toLowerCase() === word.toLowerCase() && !NAME_GOES_ON.test(value.slice(name + word.length));
+    const bot = byLength.find((candidate) => fits(candidate.name));
+    const all = bot ? void 0 : ALL_WORDS.find(fits);
     if (!bot && !all) continue;
-    const end = at + 1 + (bot ? bot.name.length : all.length);
-    spans.push(bot ? { start: at, end, bot } : { start: at, end, all: true });
+    const end = name + (bot ? bot.name.length : all.length);
+    spans.push(bot ? { start, end, name, bot } : { start, end, name, all: true });
     at = end - 1;
   }
   return spans;
@@ -1473,12 +1488,12 @@ function mentionSpans(text, bots, { references = [] } = {}) {
 // src/client/text.js
 var MENTION_ORIGIN = "https://bots.local/";
 function linkMentions(text, bots, selfId) {
-  if (!text || !text.includes("@")) return text;
+  if (!text || !/[@＠]/.test(text)) return text;
   let out = "";
   let cursor = 0;
   for (const span of mentionSpans(text, bots)) {
     if (!span.bot || span.bot.id === selfId) continue;
-    out += `${text.slice(cursor, span.start)}[${text.slice(span.start + 1, span.end).replace(/[[\]\\]/g, "\\$&")}](${MENTION_ORIGIN}${span.bot.id})`;
+    out += `${text.slice(cursor, span.start)}[${text.slice(span.name, span.end).replace(/[[\]\\]/g, "\\$&")}](${MENTION_ORIGIN}${span.bot.id})`;
     cursor = span.end;
   }
   return cursor === 0 ? text : out + text.slice(cursor);
@@ -13463,7 +13478,7 @@ function userTextParts(text, bots, referenceLabels = []) {
   for (const span of mentionSpans(text, bots, { references: referenceLabels })) {
     if (!span.bot) continue;
     if (span.start > cursor) parts.push({ text: text.slice(cursor, span.start) });
-    parts.push({ bot: span.bot, label: text.slice(span.start + 1, span.end) });
+    parts.push({ bot: span.bot, label: text.slice(span.name, span.end) });
     cursor = span.end;
   }
   if (cursor < text.length) parts.push({ text: text.slice(cursor) });

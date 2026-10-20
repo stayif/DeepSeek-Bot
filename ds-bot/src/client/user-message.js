@@ -42,7 +42,7 @@ export function userTextParts(text, bots, referenceLabels = []) {
   for (const span of mentionSpans(text, bots, { references: referenceLabels })) {
     if (!span.bot) continue
     if (span.start > cursor) parts.push({ text: text.slice(cursor, span.start) })
-    parts.push({ bot: span.bot, label: text.slice(span.start + 1, span.end) })
+    parts.push({ bot: span.bot, label: text.slice(span.name, span.end) })
     cursor = span.end
   }
   if (cursor < text.length) parts.push({ text: text.slice(cursor) })
