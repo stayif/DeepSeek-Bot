@@ -1446,7 +1446,6 @@ var atRun = (text, at) => {
   while (start > 0 && isAt(text[start - 1])) start -= 1;
   let name = at;
   while (isAt(text[name])) name += 1;
-  while (/[^\S\r\n]/.test(text[name] ?? "")) name += 1;
   return { start, name };
 };
 function referenceSpans(text, labels = []) {

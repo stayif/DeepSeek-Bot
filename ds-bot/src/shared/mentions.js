@@ -38,15 +38,15 @@ export function nameProblem(name) {
   return undefined
 }
 
-// Where a call starts and where its name starts. The at run and the spaces after it are
-// part of the call ("＠＠Name" and "@ Name" each call once), and `name` is what the
-// bubbles draw. A line break after the at is not a call.
+// Where a call starts and where its name starts. At marks may run together, so "＠＠Name"
+// is one call, but the name follows the at itself: "@ Name", with a space in between, is
+// not a call, because a mention is written "@Name" and a space says it was meant as text.
+// `name` is what the bubbles draw.
 const atRun = (text, at) => {
   let start = at
   while (start > 0 && isAt(text[start - 1])) start -= 1
   let name = at
   while (isAt(text[name])) name += 1
-  while (/[^\S\r\n]/.test(text[name] ?? '')) name += 1
   return { start, name }
 }
 

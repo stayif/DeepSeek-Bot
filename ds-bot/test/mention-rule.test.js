@@ -56,18 +56,26 @@ test('a referenced conversation\'s "@label" is a reference, once per label', () 
   assert.deepEqual(mentionSpans('Read @Chief, then @Chief please', bots, { references: ['Chief'] }).map(span => span.start), [18])
 })
 
-// Issue #1: a model writing a call as "＠Name" (full-width at) or "@ Name" (a space after
-// the at) is calling that Bot, but the group read neither as a call, so the member was
-// never called. The full-width form is what a Chinese input method produces for "@".
-test('a full-width at or a space after the at still calls a member', () => {
+// Issue #1: a model writing a call as "＠Name" (full-width at) is calling that Bot, but
+// the group did not read it as a call, so the member was never called. The full-width at
+// is what a Chinese input method produces for "@" when the name follows it at once.
+test('a full-width at that touches the name still calls a member', () => {
   assert.deepEqual(called('＠Chief 你来看下'), ['Chief'])
-  assert.deepEqual(called('@ 新 Bot 2 来一下'), ['新 Bot 2'])
   assert.deepEqual(called('请 ＠新 Bot。'), ['新 Bot'])
   assert.deepEqual(called('＠＠Chief'), ['Chief'])
   assert.deepEqual(called('＠all 全体'), ['@all'])
   // Inside code, a link or an address it stays literal, exactly as the ASCII form.
   assert.deepEqual(called('run `＠Chief` now'), [])
   assert.deepEqual(called('mail a＠Chief.com'), [])
+})
+
+// A mention is written "@Name". A space after the at says it was meant as text, so it is
+// not a call: mentioning someone without calling them stays possible.
+test('an at with a space before the name does not call, in either form', () => {
+  assert.deepEqual(called('@ Chief 只是提到'), [])
+  assert.deepEqual(called('@ 新 Bot 2 来一下'), [])
+  assert.deepEqual(called('＠ Chief 只是提到'), [])
+  assert.deepEqual(called('@　Chief'), [])
 })
 
 test('a call written the way a Chinese message writes it still calls', () => {
@@ -92,7 +100,7 @@ test('the group host and the bubbles call the same Bots', () => {
 })
 
 test('the bubble draws the name alone, however the at was written', () => {
-  for (const [text, label] of [['＠Chief 你来看下', 'Chief'], ['@ 新 Bot 2 来一下', '新 Bot 2'], ['＠＠新 Bot 2', '新 Bot 2'], ['请＠K看下', 'K']]) {
+  for (const [text, label] of [['＠Chief 你来看下', 'Chief'], ['＠＠新 Bot 2', '新 Bot 2'], ['请＠K看下', 'K']]) {
     assert.equal(plain(userTextParts(text, bots)).filter(part => part.bot).map(part => part.label).join(''), label, text)
     assert.deepEqual(linkMentions(text, bots, undefined).match(/\[([^\]]+)\]/g), [`[${label}]`], text)
   }

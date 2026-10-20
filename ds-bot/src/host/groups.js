@@ -86,7 +86,10 @@ export const referenceNote = references => (references?.length
   : '')
 
 const ROOM_REPLY = 'Reply with your message for the group, no name prefix: in a discussion, one or two short messages. When you are asked to do something, do it now with your tools. The group does not wait for you and sees what you write while you work: say what you will do, write again only when something matters, and end with the result, never a promise to do it later. Reply [PASS] to stay silent when you have nothing new to add or the message is for someone else.'
-const ROOM_CALLS = 'Writing "@Name" calls that member next, to answer or to do what you ask; when it finishes work you gave it, you answer its result. To only mention a member, write its name without "@".'
+// A member is reached only by "@Name", never by its bare name, so the prompt says both
+// what a call does and that a bare name does not call: a model that names a member
+// without "@" leaves it unread, which is issue #1.
+const ROOM_CALLS = 'Writing "@Name" calls that member next, to answer or to do what you ask; when it finishes work you gave it, you answer its result. To hand work to, notify or ask a member, always write "@Name", with the "@" touching the name: a bare name reaches nobody. To only mention a member, write its name without "@".'
 
 const slotLabel = (slot) => {
   if (slot.status === 'speaking') return `${slot.name} (you, now)`

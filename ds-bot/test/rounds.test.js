@@ -626,3 +626,23 @@ test('a long post goes to the group as a file, and reaches the member with its p
   assert.deepEqual(line.files, [file])
   assert.equal(line.length, undefined, 'the line is short; no file of its own')
 })
+
+// Issue #1: a model that names a member without "@" leaves it unread, so the prompt that
+// tells a member how the room works says so: a bare name does not reach a member.
+test('a member is told that a bare name does not reach another one', async (t) => {
+  const { call, emit, userMessage, relay, answer, stop, sent } = start()
+  t.after(stop)
+  const room = await team(call, sent)
+  await emit(room.id, userMessage('Start'))
+  const running = relay(room.id, 'relay')
+  const turn = await turnFor(sent)
+  assert.ok(turn, 'the admin gets the first turn')
+  assert.match(turn.message.content[0].text, /To hand work to, notify or ask a member, always write "@Name"/)
+  assert.match(turn.message.content[0].text, /a bare name reaches nobody/)
+  await answer(turn.sessionId, turn.message.source.exchangeId, '[PASS]', 1)
+  // The Writer's turn ends the round, which the relay is waiting for.
+  const next = await turnFor(sent, turn)
+  assert.ok(next, 'the Writer gets its turn')
+  await answer(next.sessionId, next.message.source.exchangeId, '[PASS]', 2)
+  await running
+})
